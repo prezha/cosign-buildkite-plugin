@@ -171,7 +171,7 @@ e.g. to view the debug logging for the `cosign` command, set the following
 at the top of the `.bats` file:
 
 ```shell
-export cosign_STUB_DEBUG=/dev/tty
+export COSIGN_STUB_DEBUG=/dev/tty
 ```
 
 and then run the tests with debug logging enabled:

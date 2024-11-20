@@ -78,6 +78,13 @@ sign_flags=("-y" "--output-signature" "${sigfile}")
 
 is_keyless=${BUILDKITE_PLUGIN_COSIGN_KEYLESS:-true}
 
+# set the pass-on-cosign-failure from the PASS_ON_COSIGN_FAILURE env var, if one is set (default: false)
+pass_on_cosign_failure=false
+if [[ -n "${PASS_ON_COSIGN_FAILURE}" ]]; then
+    pass_on_cosign_failure="${PASS_ON_COSIGN_FAILURE}"
+    echo "using PASS_ON_COSIGN_FAILURE=${pass_on_cosign_failure} env var value"
+fi
+
 # Hook functions
 ################
 
@@ -111,8 +118,9 @@ cosign_init() {
 
         local status=$?
         if [[ $status -ne 0 ]]; then
-            fail_with_message "cosign" "Failed to initialise"
+            return "${status}"
         fi
+
         display_success "cosign" "Successfully initialised"
     else
         display_success "cosign" "Initialisation not required, skipping"
@@ -175,7 +183,7 @@ cosign_sign() {
 
     local status=$?
     if [[ $status -ne 0 ]]; then
-        fail_with_message "cosign" "Failed to sign image"
+        return "${status}"
     fi
 
     local signature
@@ -201,6 +209,15 @@ EOF
 #######
 
 cosign_init
+status=$?
+if [[ "${status}" -ne 0 ]]; then
+    display_error "cosign" "Failed to initialise (error code: ${status})"
+    if [[ "${pass_on_cosign_failure}" == true ]]; then
+        display_success "cosign" "Passing on cosign init failure as per configuration"
+        exit 0
+    fi
+    exit "${status}"
+fi
 
 if [[ "${is_keyless}" == true ]]; then
     setup_keyless
@@ -209,3 +226,12 @@ else
 fi
 
 cosign_sign
+status=$?
+if [[ "${status}" -ne 0 ]]; then
+    display_error "cosign" "Failed to sign image (error code: ${status})"
+    if [[ "${pass_on_cosign_failure}" == true ]]; then
+        display_success "cosign" "Passing on cosign sign failure as per configuration"
+        exit 0
+    fi
+    exit "${status}"
+fi
